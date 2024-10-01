@@ -1,0 +1,116 @@
+---
+title: "project2"
+author: "grace brooks"
+date: "2024-09-16"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# part one: fun with functions
+```{r}
+library(tidyverse)
+# part 1a: exponential transformation
+Exp <- function(x, k) {
+  exponential <- 1
+  for(i in 1: k){
+    exponential <- exponential + (x^i)/(factorial(i))
+  }
+  return(exponential)
+}
+Exp(2,3)
+# part 1b: sample mean and sample standard deviation
+sample_mean <- function(x) {
+    xbar <- sum(x)/length(x)
+    return(xbar)
+}
+x <- sample(1:9999,3)
+print(x)
+sample_mean(x)
+
+sample_sd <- function(x) {
+  xbar <- sum(x)/length(x)
+  summation <- sum((x-xbar)^2)
+  sd<-sqrt(summation/(length(x-1)))
+    return(sd)
+}
+print(x)
+sample_sd(x)
+# part 1c: confidence intervals
+calculate_CI <- function(x, conf = 0.95) {
+    xbar <- sum(x)/length(x)
+    alpha <- 1- conf
+    degrees_freedom <- length(x-1)
+    t_score <- qt(p = alpha / 2, df = degrees_freedom, lower.tail = FALSE)
+    lower_bound <- xbar - t_score
+    upper_bound <- xbar + t_score
+    CI <- c(lower_bound, upper_bound)
+    return(CI)
+}
+print(x)
+calculate_CI(x, conf = 0.95)
+calculate_CI(x, conf = 0.90)
+```
+
+# part two: wrangling data
+```{r}
+# data
+library(tidytuesdayR)
+library(here)
+if (!file.exists(here("data", "tuesdata_rainfall.RDS"))) {
+    tuesdata <- tidytuesdayR::tt_load("2020-01-07")
+    rainfall <- tuesdata$rainfall
+    temperature <- tuesdata$temperature
+
+    # save the files to RDS objects
+    saveRDS(tuesdata$rainfall, file = here("data", "tuesdata_rainfall.RDS"))
+    saveRDS(tuesdata$temperature, file = here("data", "tuesdata_temperature.RDS"))
+}
+
+rainfall <- readRDS(here("data", "tuesdata_rainfall.RDS"))
+temperature <- readRDS(here("data", "tuesdata_temperature.RDS"))
+
+library(tidyverse)
+
+glimpse(rainfall)
+glimpse(temperature)
+# tasks
+library(stringr)
+rainfall_wrangled <- rainfall %>% drop_na() 
+rainfall_wrangled <- mutate(rainfall_wrangled, date = make_date(year, month, day)) 
+rainfall_wrangled <- subset(rainfall_wrangled, select = -c(month, day)) %>% mutate(city_name= toupper(city_name))
+
+merge<- rainfall_wrangled %>% 
+  inner_join(temperature, by = c("city_name", "date"), relationship = "many-to-many")
+```
+
+# part three: data visualization
+```{r}
+library(ggplot2)
+# part 3a: plotting temperature data over time
+ggplot(merge, aes(x=year, y= temperature, color = temp_type)) + geom_line() + xlim(2014,2019)+ labs(title = "Minimum and Maximum Temperatures since 2014", subtitle = "Temperatures in 5 Austrailian Cities since 2014", caption = "Grace Brooks", x = "Time in Years", y = "Min and Max Temperatures") + facet_wrap(~city_name) + theme_dark() + theme(axis.text.x = element_text(size = 8, angle = 90))
+# part 3b: plotting rainfall over time
+# I decided to create a function that would filter through the data, and stop if the condition was not met. So, first, the city entered was compared to the city names in the wrangled data set, and if not found the function would shut down. Then, if the city name is found, the same was done with years, where if the city and year combination did not exist the function would shut down. After scanned for these conditions, the function will create a histogram for the desired city and year if the data exists. 
+rainfall_over_time <- function(city, year){
+  rainfall_wrangled %>% filter(city_name == city)
+  
+    if(!city %in% rainfall_wrangled$city_name){
+      stop("error: city is not found")  
+    }
+    if(city %in% rainfall_wrangled$city_name & !year %in% rainfall_wrangled$year){
+      stop("error: city and year combination not found")
+    }
+  ggplot(rainfall_wrangled, aes(log(rainfall))) + geom_histogram(color = "skyblue", bins=12) + labs(title = "Log Values of Rainfall", subtitle = "Looking at the log value of rainfall in specific cities and years", caption = "Grace Brooks, data from tidytuesdayR", x= "Density (Log Value)", y="Rainfall Amount") + theme_dark()
+}
+rainfall_over_time("BRISBANE", 2020)
+```
+
+#part four: applying functions and plot
+```{r}
+# part 4a: tasks
+rainfall_wrangled_filtered<- rainfall_wrangled %>% filter(year>2013)
+rain_df <- rainfall_wrangled_filtered %>% group_by(city_name, year) %>% summarise(average = sample_mean(rainfall), stand_dev = sample_sd(rainfall), lower_bound = first(calculate_CI(rainfall, conf = 0.95)), upper_bound = last(calculate_CI(rainfall, conf = 0.95)))
+# part 4b: tasks
+ggplot(rain_df, aes(x = year, y = average)) + geom_point() + geom_line(aes(group = city_name), color = "skyblue") + geom_errorbar(aes(ymin = lower_bound, ymax = upper_bound), color = "lightpink") + facet_wrap(~city_name, scales = "free_x") + labs(title = "Average Rainfall since 2014", subtitle = "average rainfall in various cities since 2014 with 95% confidence intervals", caption = "Grace Brooks, data from tidytuesdayR", x = "Time in Years", y = "Average Rainfall") + theme_dark()
+```
